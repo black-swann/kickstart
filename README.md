@@ -136,6 +136,16 @@ For existing repositories, Kickstart also records a small snapshot:
 
 Before generation, the review panel lets you confirm, go back through answers, or quit without writing files.
 
+## Examples
+
+Example generated packets are included under `docs/examples`:
+
+- [new project](docs/examples/new-project/)
+- [existing repo](docs/examples/existing-repo/)
+- [repo cleanup](docs/examples/repo-cleanup/)
+
+Each example includes the generated `PROJECT.md`, `TASKS.md`, and `KICKOFF.md` files.
+
 ## Prompt Model
 
 Kickstart follows a compact prompt structure used across common AI-assistant guidance:

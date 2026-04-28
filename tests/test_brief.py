@@ -29,6 +29,7 @@ class BriefGenerationTests(unittest.TestCase):
 
         self.assertEqual(["PROJECT.md", "TASKS.md", "KICKOFF.md"], [file.path for file in generated])
         self.assertIn("Build a useful thing.", generated[0].content)
+        self.assertIn("kickoff instruction for an implementation session", generated[2].content)
         self.assertIn("Do not rush into code", generated[2].content)
 
     def test_existing_repo_includes_snapshot_context(self):

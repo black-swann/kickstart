@@ -154,7 +154,7 @@ Stack note:
 
     return f"""# Kickoff Brief
 
-Use this as the first instruction for a coding assistant.
+Use this as a kickoff instruction for an implementation session.
 
 ```text
 You are my senior engineering partner for this project.
