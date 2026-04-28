@@ -320,7 +320,11 @@ def read_key() -> str:
 def ask_text(prompt: str, default: str | None = None) -> str:
     suffix = f" [{default}]" if default else ""
     while True:
-        response = input(f"{UI.prompt(prompt)}{suffix}: ").strip()
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            response = input(f"{UI.prompt(prompt)}{suffix}: ").strip()
+        else:
+            print(f"{UI.prompt(prompt)}{suffix}")
+            response = input("> ").strip()
         if response:
             return response
         if default is not None:

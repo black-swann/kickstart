@@ -9,6 +9,7 @@ from unittest.mock import patch
 from kickstart.brief import PROJECT_TYPE_EXISTING, PROJECT_TYPE_NEW, GeneratedFile, ProjectAnswers, RepoSnapshot
 from kickstart.cli import (
     ask_choice,
+    ask_text,
     collect_answers,
     existing_generated_paths,
     resolve_write_conflicts,
@@ -164,13 +165,29 @@ class CliFlowTests(unittest.TestCase):
             prompts.append(prompt)
             return next(answers)
 
-        with patch("builtins.input", fake_input), redirect_stdout(StringIO()):
+        stdout = StringIO()
+
+        with patch("builtins.input", fake_input), redirect_stdout(stdout):
             collect_answers(PROJECT_TYPE_NEW, None)
 
-        prompt_text = "\n".join(prompts)
+        prompt_text = "\n".join([*prompts, stdout.getvalue()])
 
         self.assertLess(prompt_text.index("Project name"), prompt_text.index("What do you want to make?"))
         self.assertLess(prompt_text.index("What do you want to make?"), prompt_text.index("Any must-haves"))
+
+    def test_ask_text_prints_prompt_on_own_line_for_non_tty_input(self):
+        stdout = StringIO()
+
+        with (
+            patch("sys.stdin.isatty", return_value=False),
+            patch("builtins.input", return_value="gogo") as input_mock,
+            redirect_stdout(stdout),
+        ):
+            answer = ask_text("Project name", default="kickstart")
+
+        self.assertEqual("gogo", answer)
+        self.assertEqual("Project name [kickstart]\n", stdout.getvalue())
+        input_mock.assert_called_once_with("> ")
 
     def test_review_lines_summarize_answers_before_generation(self):
         lines = review_lines(sample_answers())
