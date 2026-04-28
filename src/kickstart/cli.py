@@ -63,6 +63,25 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_init(args: argparse.Namespace) -> int:
+    print_intro()
+    project_type = choose_project_type(args.project_type)
+    write_files = choose_write_mode(args.write, args.preview)
+    repo_snapshot = collect_repo_snapshot(project_type, args.repo_path)
+    answers = collect_confirmed_answers(project_type, repo_snapshot)
+    if answers is None:
+        print("No files generated.")
+        return 0
+
+    generated_files = generate_files(answers)
+    if write_files:
+        return handle_write(args.output_dir, generated_files, force=args.force)
+
+    print_preview(generated_files)
+
+    return 0
+
+
+def print_intro() -> None:
     print(
         UI.panel(
             "Kickstart",
@@ -72,55 +91,61 @@ def run_init(args: argparse.Namespace) -> int:
             ],
         )
     )
-    project_type = args.project_type or ask_choice(
+
+
+def choose_project_type(project_type: str | None) -> str:
+    return project_type or ask_choice(
         "Are you starting a new project, or working inside an existing repo?",
         [(PROJECT_TYPE_NEW, "New project"), (PROJECT_TYPE_EXISTING, "Existing repo")],
     )
-    write_files = args.write
-    if not args.write and not args.preview:
-        output_mode = ask_choice(
-            "Should I write the generated files directly, or preview them first?",
-            [("preview", "Preview first"), ("write", "Write files directly")],
-        )
-        write_files = output_mode == "write"
 
-    repo_snapshot = None
-    repo_path = args.repo_path
-    if project_type == PROJECT_TYPE_EXISTING:
-        if repo_path is None:
-            repo_path = Path(ask_text("Repo path", default=str(Path.cwd())))
-        repo_snapshot = inspect_repo(repo_path)
 
+def choose_write_mode(write: bool, preview: bool) -> bool:
+    if write:
+        return True
+    if preview:
+        return False
+    output_mode = ask_choice(
+        "Should I write the generated files directly, or preview them first?",
+        [("preview", "Preview first"), ("write", "Write files directly")],
+    )
+    return output_mode == "write"
+
+
+def collect_repo_snapshot(project_type: str, repo_path: Path | None) -> RepoSnapshot | None:
+    if project_type != PROJECT_TYPE_EXISTING:
+        return None
+    if repo_path is None:
+        repo_path = Path(ask_text("Repo path", default=str(Path.cwd())))
+    return inspect_repo(repo_path)
+
+
+def collect_confirmed_answers(project_type: str, repo_snapshot: RepoSnapshot | None) -> ProjectAnswers | None:
     while True:
         answers = collect_answers(project_type, repo_snapshot)
         review_action = confirm_answers(answers)
         if review_action == REVIEW_CONFIRM:
-            break
+            return answers
         if review_action == REVIEW_QUIT:
-            print("No files generated.")
-            return 0
+            return None
 
-    generated_files = generate_files(answers)
 
-    if write_files:
-        conflicts = []
-        if not args.force:
-            conflicts = existing_generated_paths(args.output_dir, generated_files)
-            if conflicts:
-                conflict_action = resolve_write_conflicts(conflicts)
-                if conflict_action == WRITE_PREVIEW:
-                    print_preview(generated_files)
-                    return 0
-                if conflict_action == WRITE_QUIT:
-                    print("No files written.")
-                    return 0
-                if conflict_action != WRITE_OVERWRITE:
-                    raise SystemExit(f"Unknown write conflict action: {conflict_action}")
-        write_generated_files(args.output_dir, generated_files, force=args.force or bool(conflicts))
-        print(f"Wrote {len(generated_files)} files to {args.output_dir}")
-    else:
-        print_preview(generated_files)
-
+def handle_write(output_dir: Path, generated_files, force: bool) -> int:
+    conflicts = []
+    if not force:
+        conflicts = existing_generated_paths(output_dir, generated_files)
+        if conflicts:
+            conflict_action = resolve_write_conflicts(conflicts)
+            if conflict_action == WRITE_PREVIEW:
+                print_preview(generated_files)
+                return 0
+            if conflict_action == WRITE_QUIT:
+                print("No files written.")
+                return 0
+            if conflict_action != WRITE_OVERWRITE:
+                raise SystemExit(f"Unknown write conflict action: {conflict_action}")
+    write_generated_files(output_dir, generated_files, force=force or bool(conflicts))
+    print(f"Wrote {len(generated_files)} files to {output_dir}")
     return 0
 
 
