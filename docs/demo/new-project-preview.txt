@@ -1,0 +1,190 @@
++------------------------------------------------------------+
+| Kickstart                                                  |
+|                                                            |
+| Answer a few plain-English questions.                      |
+| Kickstart will draft PROJECT.md, TASKS.md, and KICKOFF.md. |
++------------------------------------------------------------+
+Project name [kickstart]
+> What do you want to make?
+> Who is this for?
+  1. Just me
+  2. Me and friends
+  3. A team or coworkers
+  4. Customers or public users
+  5. Custom
+> Do you know what technology you want to use?
+  1. Suggest one for me
+  2. I know the stack
+  3. Not technical or not relevant
+> Any must-haves or limits? [Keep it simple, affordable, and easy to maintain.]
+> What would make this feel finished? [A working version I can try.]
+> Anything uncertain or worrying? [I am not sure yet.]
+> What quality preset fits this work?
+  1. Prototype
+  2. Production
+  3. Learning
+  4. Repo cleanup
+  5. Custom
+> How detailed should the generated kickoff guidance be?
+  1. Concise
+  2. Detailed
+> +------------------------------------------------------------------------------+
+| Review Answers                                                               |
+|                                                                              |
+| Project: Task Helper                                                         |
+| Goal: A small CLI for turning scattered project notes into a clear           |
+|       next-action list.                                                      |
+| Users: A team or coworkers                                                   |
+| Stack: Needs recommendation from the assistant based on the project goal and |
+|        constraints.                                                          |
+| Quality: Fast, simple, and easy to change. Prefer working behavior over      |
+|          polish, but keep the code understandable.                           |
+| Output: concise                                                              |
+| Files: PROJECT.md, TASKS.md, KICKOFF.md                                      |
++------------------------------------------------------------------------------+
+Ready to generate files?
+  1. Confirm
+  2. Back through answers
+  3. Quit
+> 
+--- PROJECT.md ---
+
+# Task Helper
+
+## Purpose
+
+A small CLI for turning scattered project notes into a clear next-action list.
+
+## Project Type
+
+New project
+
+## Target Users
+
+A team or coworkers
+
+## Stack
+
+Needs recommendation from the assistant based on the project goal and constraints.
+
+## Constraints
+
+Keep it dependency-light and easy to run locally.
+
+## Definition Of Done
+
+A usable first version that produces a short task list from plain text notes.
+
+## Quality Bar
+
+Fast, simple, and easy to change. Prefer working behavior over polish, but keep the code understandable.
+
+## Known Risks And Unknowns
+
+Input formats may vary, so keep parsing simple at first.
+
+## Decisions
+
+- Initial workflow starts with clarification, architecture comparison, execution planning, then the first small implementation slice.
+
+## Key Commands
+
+```bash
+Record the validation command after the first successful run.
+```
+
+
+--- TASKS.md ---
+
+# TASKS
+
+## Current Goal
+
+Turn the project brief for `Task Helper` into the first verified implementation slice.
+
+## Active Tasks
+
+- Confirm requirements, users, constraints, and definition of done.
+- Compare 2-3 implementation approaches before writing code.
+- Choose the smallest slice that proves the direction.
+- Identify the repeatable validation command.
+- Run edge-case, security, performance, and strict review passes before calling the slice done.
+
+## Next Up
+
+- Execute the kickoff brief in `KICKOFF.md`.
+
+## Blocked
+
+- Nothing currently blocked.
+
+## Done
+
+- Created initial project brief packet.
+
+## Notes / Risks / Suggestions
+
+- Keep this file short and current.
+- Move stable context into `PROJECT.md`.
+- Record meaningful architecture or product decisions in `PROJECT.md` or `docs/DECISIONS.md`.
+
+## Session Log
+
+- Initialized project from Kickstart.
+
+
+--- KICKOFF.md ---
+
+# Kickoff Brief
+
+Use this as a kickoff instruction for an implementation session.
+
+```text
+You are my senior engineering partner for this project.
+
+Project: Task Helper
+
+Goal:
+A small CLI for turning scattered project notes into a clear next-action list.
+
+Users:
+A team or coworkers
+
+Stack:
+Needs recommendation from the assistant based on the project goal and constraints.
+
+Constraints:
+Keep it dependency-light and easy to run locally.
+
+Definition of done:
+A usable first version that produces a short task list from plain text notes.
+
+Known risks and unknowns:
+Input formats may vary, so keep parsing simple at first.
+
+Quality bar:
+Fast, simple, and easy to change. Prefer working behavior over polish, but keep the code understandable.
+
+
+Stack note:
+
+- The user does not know the best technical stack yet. Compare stack choices in plain English before recommending one.
+
+Work in this order:
+
+1. Clarify: Ask focused questions about vague requirements, scale, users, constraints, and edge cases.
+2. Design: Propose 2-3 possible approaches and compare them on simplicity, maintainability, cost, speed, and risk.
+3. Plan: Break the chosen approach into components, data flow, interfaces, and the first small implementation slice.
+4. Build: Implement only the first slice after the plan is clear.
+5. Verify: Run the relevant validation command and report exact results.
+6. Review: Check edge cases, failure modes, security risks, performance bottlenecks, and code quality before calling the work done.
+
+
+Output style:
+
+- Keep the response concise and action-oriented.
+
+
+Do not rush into code. Tailor every recommendation to this project's context.
+```
+

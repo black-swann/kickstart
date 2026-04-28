@@ -12,6 +12,8 @@ Kickstart is designed for local use at the start of a project, before the repo h
 
 ![Kickstart terminal review flow](docs/readme-screenshot.png)
 
+See a full preview transcript in [docs/demo/new-project-preview.txt](docs/demo/new-project-preview.txt).
+
 ## Features
 
 - guided interview for new projects or existing repositories
