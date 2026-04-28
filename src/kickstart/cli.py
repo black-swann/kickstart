@@ -161,7 +161,7 @@ def confirm_answers(answers: ProjectAnswers) -> str:
 
 
 def review_lines(answers: ProjectAnswers) -> list[str]:
-    return [
+    lines = [
         f"Project: {answers.name}",
         f"Goal: {answers.goal}",
         f"Users: {answers.users}",
@@ -169,6 +169,20 @@ def review_lines(answers: ProjectAnswers) -> list[str]:
         f"Quality: {answers.quality_bar}",
         f"Output: {answers.output_style}",
         "Files: PROJECT.md, TASKS.md, KICKOFF.md",
+    ]
+    if answers.repo_snapshot is not None:
+        lines.extend(repo_snapshot_review_lines(answers.repo_snapshot))
+    return lines
+
+
+def repo_snapshot_review_lines(snapshot: RepoSnapshot) -> list[str]:
+    detected_files = ", ".join(snapshot.detected_files) if snapshot.detected_files else "none"
+    dirty = "unknown" if snapshot.dirty is None else ("yes" if snapshot.dirty else "no")
+    return [
+        f"Repo path: {snapshot.path}",
+        f"Repo files: {detected_files}",
+        f"Repo branch: {snapshot.git_branch or 'unknown'}",
+        f"Repo dirty: {dirty}",
     ]
 
 

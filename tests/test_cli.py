@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from kickstart.brief import PROJECT_TYPE_NEW, GeneratedFile, ProjectAnswers
+from kickstart.brief import PROJECT_TYPE_EXISTING, PROJECT_TYPE_NEW, GeneratedFile, ProjectAnswers, RepoSnapshot
 from kickstart.cli import (
     ask_choice,
     collect_answers,
@@ -34,6 +34,27 @@ def sample_answers(name: str = "gogo") -> ProjectAnswers:
         risks="networking is unclear",
         quality_bar="Fast and simple",
         output_style="concise",
+    )
+
+
+def sample_existing_answers() -> ProjectAnswers:
+    return ProjectAnswers(
+        project_type=PROJECT_TYPE_EXISTING,
+        name="existing-app",
+        goal="improve the repo",
+        users="A team or coworkers",
+        stack="Python",
+        constraints="keep current behavior",
+        done="tests pass",
+        risks="dirty worktree",
+        quality_bar="Production",
+        output_style="detailed",
+        repo_snapshot=RepoSnapshot(
+            path=Path("/tmp/existing-app"),
+            detected_files=("README.md", "pyproject.toml"),
+            git_branch="main",
+            dirty=True,
+        ),
     )
 
 
@@ -160,6 +181,16 @@ class CliFlowTests(unittest.TestCase):
         self.assertIn("Goal: make a tic-tac-toe app", summary)
         self.assertIn("Users: Me and friends", summary)
         self.assertIn("Output: concise", summary)
+
+    def test_review_lines_include_existing_repo_snapshot(self):
+        lines = review_lines(sample_existing_answers())
+
+        summary = "\n".join(lines)
+
+        self.assertIn("Repo path: /tmp/existing-app", summary)
+        self.assertIn("Repo files: README.md, pyproject.toml", summary)
+        self.assertIn("Repo branch: main", summary)
+        self.assertIn("Repo dirty: yes", summary)
 
     def test_run_init_quit_from_review_skips_generation(self):
         stdout = StringIO()
