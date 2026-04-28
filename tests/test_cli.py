@@ -1,13 +1,128 @@
 import unittest
+from argparse import Namespace
 from contextlib import redirect_stdout
 from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from kickstart.cli import collect_answers
-from kickstart.brief import PROJECT_TYPE_NEW
+from kickstart.brief import PROJECT_TYPE_NEW, GeneratedFile, ProjectAnswers
+from kickstart.cli import (
+    ask_choice,
+    collect_answers,
+    existing_generated_paths,
+    resolve_write_conflicts,
+    review_lines,
+    run_init,
+)
+
+
+class TtyStringIO(StringIO):
+    def isatty(self):
+        return True
+
+
+def sample_answers(name: str = "gogo") -> ProjectAnswers:
+    return ProjectAnswers(
+        project_type=PROJECT_TYPE_NEW,
+        name=name,
+        goal="make a tic-tac-toe app",
+        users="Me and friends",
+        stack="Python",
+        constraints="minimal features",
+        done="playable first version",
+        risks="networking is unclear",
+        quality_bar="Fast and simple",
+        output_style="concise",
+    )
+
+
+def init_args(output_dir: Path = Path("."), write: bool = False, preview: bool = True, force: bool = False) -> Namespace:
+    return Namespace(
+        project_type=PROJECT_TYPE_NEW,
+        preview=preview,
+        write=write,
+        output_dir=output_dir,
+        repo_path=None,
+        force=force,
+    )
 
 
 class CliFlowTests(unittest.TestCase):
+    def test_ask_choice_uses_arrow_key_selection_in_terminal(self):
+        keys = iter(["\x1b[B", "\r"])
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout", TtyStringIO()),
+            patch("kickstart.cli.read_key", side_effect=lambda: next(keys)),
+        ):
+            choice = ask_choice(
+                "Pick one",
+                [("preview", "Preview first"), ("write", "Write files")],
+            )
+
+        self.assertEqual("write", choice)
+
+    def test_ask_choice_uses_number_key_selection_in_terminal(self):
+        keys = iter(["2", "\r"])
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout", TtyStringIO()),
+            patch("kickstart.cli.read_key", side_effect=lambda: next(keys)),
+        ):
+            choice = ask_choice(
+                "Pick one",
+                [("preview", "Preview first"), ("write", "Write files")],
+            )
+
+        self.assertEqual("write", choice)
+
+    def test_ask_choice_confirms_terminal_selection(self):
+        keys = iter(["2", "\r"])
+        stdout = TtyStringIO()
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout", stdout),
+            patch("kickstart.cli.read_key", side_effect=lambda: next(keys)),
+        ):
+            ask_choice(
+                "Pick one",
+                [("preview", "Preview first"), ("write", "Write files")],
+            )
+
+        self.assertIn("Selected: Write files", stdout.getvalue())
+
+    def test_ask_choice_q_quits_terminal_menu(self):
+        keys = iter(["q"])
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout", TtyStringIO()),
+            patch("kickstart.cli.read_key", side_effect=lambda: next(keys)),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                ask_choice(
+                    "Pick one",
+                    [("preview", "Preview first"), ("write", "Write files")],
+                )
+
+    def test_ask_choice_escape_quits_terminal_menu(self):
+        keys = iter(["\x1b"])
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout", TtyStringIO()),
+            patch("kickstart.cli.read_key", side_effect=lambda: next(keys)),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                ask_choice(
+                    "Pick one",
+                    [("preview", "Preview first"), ("write", "Write files")],
+                )
+
     def test_collect_answers_asks_plain_english_questions_before_stack(self):
         prompts = []
         answers = iter(
@@ -35,3 +150,126 @@ class CliFlowTests(unittest.TestCase):
 
         self.assertLess(prompt_text.index("Project name"), prompt_text.index("What do you want to make?"))
         self.assertLess(prompt_text.index("What do you want to make?"), prompt_text.index("Any must-haves"))
+
+    def test_review_lines_summarize_answers_before_generation(self):
+        lines = review_lines(sample_answers())
+
+        summary = "\n".join(lines)
+
+        self.assertIn("Project: gogo", summary)
+        self.assertIn("Goal: make a tic-tac-toe app", summary)
+        self.assertIn("Users: Me and friends", summary)
+        self.assertIn("Output: concise", summary)
+
+    def test_run_init_quit_from_review_skips_generation(self):
+        stdout = StringIO()
+
+        with (
+            patch("kickstart.cli.collect_answers", return_value=sample_answers()),
+            patch("kickstart.cli.confirm_answers", return_value="quit"),
+            patch("kickstart.cli.generate_files") as generate_files,
+            redirect_stdout(stdout),
+        ):
+            exit_code = run_init(init_args())
+
+        self.assertEqual(0, exit_code)
+        generate_files.assert_not_called()
+        self.assertIn("No files generated.", stdout.getvalue())
+
+    def test_run_init_back_from_review_collects_answers_again(self):
+        first = sample_answers("first")
+        revised = sample_answers("revised")
+
+        with (
+            patch("kickstart.cli.collect_answers", side_effect=[first, revised]) as collect,
+            patch("kickstart.cli.confirm_answers", side_effect=["back", "confirm"]),
+            patch("kickstart.cli.generate_files", return_value=[]) as generate_files,
+            patch("kickstart.cli.print_preview"),
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = run_init(init_args())
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(2, collect.call_count)
+        generate_files.assert_called_once_with(revised)
+
+    def test_run_init_previews_instead_when_write_conflicts(self):
+        with TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            (output_dir / "PROJECT.md").write_text("existing", encoding="utf-8")
+            generated = [GeneratedFile("PROJECT.md", "new")]
+            stdout = StringIO()
+
+            with (
+                patch("kickstart.cli.collect_answers", return_value=sample_answers()),
+                patch("kickstart.cli.confirm_answers", return_value="confirm"),
+                patch("kickstart.cli.generate_files", return_value=generated),
+                patch("kickstart.cli.resolve_write_conflicts", return_value="preview"),
+                redirect_stdout(stdout),
+            ):
+                exit_code = run_init(init_args(output_dir=output_dir, write=True, preview=False))
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual("existing", (output_dir / "PROJECT.md").read_text(encoding="utf-8"))
+            self.assertIn("--- PROJECT.md ---", stdout.getvalue())
+
+    def test_run_init_overwrites_when_write_conflict_is_approved(self):
+        with TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            (output_dir / "PROJECT.md").write_text("existing", encoding="utf-8")
+            generated = [GeneratedFile("PROJECT.md", "new")]
+
+            with (
+                patch("kickstart.cli.collect_answers", return_value=sample_answers()),
+                patch("kickstart.cli.confirm_answers", return_value="confirm"),
+                patch("kickstart.cli.generate_files", return_value=generated),
+                patch("kickstart.cli.resolve_write_conflicts", return_value="overwrite"),
+                redirect_stdout(StringIO()),
+            ):
+                exit_code = run_init(init_args(output_dir=output_dir, write=True, preview=False))
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual("new", (output_dir / "PROJECT.md").read_text(encoding="utf-8"))
+
+    def test_run_init_quit_from_write_conflict_leaves_files_unchanged(self):
+        with TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            (output_dir / "PROJECT.md").write_text("existing", encoding="utf-8")
+            generated = [GeneratedFile("PROJECT.md", "new")]
+            stdout = StringIO()
+
+            with (
+                patch("kickstart.cli.collect_answers", return_value=sample_answers()),
+                patch("kickstart.cli.confirm_answers", return_value="confirm"),
+                patch("kickstart.cli.generate_files", return_value=generated),
+                patch("kickstart.cli.resolve_write_conflicts", return_value="quit"),
+                redirect_stdout(stdout),
+            ):
+                exit_code = run_init(init_args(output_dir=output_dir, write=True, preview=False))
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual("existing", (output_dir / "PROJECT.md").read_text(encoding="utf-8"))
+            self.assertIn("No files written.", stdout.getvalue())
+
+    def test_existing_generated_paths_reports_only_conflicts(self):
+        with TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            (output_dir / "PROJECT.md").write_text("existing", encoding="utf-8")
+
+            conflicts = existing_generated_paths(
+                output_dir,
+                [GeneratedFile("PROJECT.md", "new"), GeneratedFile("TASKS.md", "new")],
+            )
+
+        self.assertEqual([output_dir / "PROJECT.md"], conflicts)
+
+    def test_resolve_write_conflicts_refuses_non_tty_overwrite(self):
+        with (
+            patch("sys.stdin.isatty", return_value=False),
+            patch("sys.stdout.isatty", return_value=False),
+            redirect_stdout(StringIO()),
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                resolve_write_conflicts([Path("PROJECT.md")])
+
+        self.assertIn("Refusing to overwrite", str(raised.exception))

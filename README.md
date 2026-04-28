@@ -6,7 +6,7 @@ Kickstart turns a few plain-English project-start answers into a practical kicko
 - `TASKS.md` for initial execution state
 - `KICKOFF.md` for the first structured assistant instruction
 
-The first two questions set the branch:
+The first prompts set the branch:
 
 1. Are you starting a new project, or working inside an existing repo?
 2. Should the tool preview generated files first, or write them directly?
@@ -22,6 +22,15 @@ The next prompts collect project context, then apply a quality preset:
 You can also choose concise or detailed kickoff guidance.
 
 The question flow is intentionally beginner-friendly. If you do not know the tech stack, choose "Suggest one for me" and Kickstart will tell the generated kickoff brief to compare stack choices in plain English.
+
+In an interactive terminal, choice prompts support:
+
+- Up/Down arrows or `j`/`k` to move
+- number keys to jump to an option
+- Enter to select
+- `q`, Escape, or Ctrl-C to quit
+
+Before generating files, Kickstart shows a review panel. You can confirm, go back through the answers, or quit without generating anything.
 
 ## Prompt Model
 
@@ -66,7 +75,13 @@ For an existing repo:
 PYTHONPATH=src python3 -m kickstart init --project-type existing --repo-path /path/to/repo
 ```
 
-By default, existing files are not overwritten. Use `--force` only when replacing generated files is intentional.
+By default, existing files are not overwritten. If `--write` would replace generated files in an interactive terminal, Kickstart shows the conflicting paths and lets you preview instead, overwrite, or quit. In non-interactive runs, it refuses to overwrite unless `--force` is set.
+
+Use `--force` only when replacing generated files is intentional:
+
+```bash
+PYTHONPATH=src python3 -m kickstart init --write --force --output-dir ./example-output
+```
 
 ## Validate
 

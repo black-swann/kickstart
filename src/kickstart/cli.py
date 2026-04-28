@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import select
 import subprocess
 import sys
+import termios
+import tty
 from pathlib import Path
 
 from .brief import (
@@ -17,6 +20,12 @@ from .ui import Tui
 
 
 UI = Tui()
+REVIEW_CONFIRM = "confirm"
+REVIEW_BACK = "back"
+REVIEW_QUIT = "quit"
+WRITE_PREVIEW = "preview"
+WRITE_OVERWRITE = "overwrite"
+WRITE_QUIT = "quit"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,11 +91,32 @@ def run_init(args: argparse.Namespace) -> int:
             repo_path = Path(ask_text("Repo path", default=str(Path.cwd())))
         repo_snapshot = inspect_repo(repo_path)
 
-    answers = collect_answers(project_type, repo_snapshot)
+    while True:
+        answers = collect_answers(project_type, repo_snapshot)
+        review_action = confirm_answers(answers)
+        if review_action == REVIEW_CONFIRM:
+            break
+        if review_action == REVIEW_QUIT:
+            print("No files generated.")
+            return 0
+
     generated_files = generate_files(answers)
 
     if write_files:
-        write_generated_files(args.output_dir, generated_files, force=args.force)
+        conflicts = []
+        if not args.force:
+            conflicts = existing_generated_paths(args.output_dir, generated_files)
+            if conflicts:
+                conflict_action = resolve_write_conflicts(conflicts)
+                if conflict_action == WRITE_PREVIEW:
+                    print_preview(generated_files)
+                    return 0
+                if conflict_action == WRITE_QUIT:
+                    print("No files written.")
+                    return 0
+                if conflict_action != WRITE_OVERWRITE:
+                    raise SystemExit(f"Unknown write conflict action: {conflict_action}")
+        write_generated_files(args.output_dir, generated_files, force=args.force or bool(conflicts))
         print(f"Wrote {len(generated_files)} files to {args.output_dir}")
     else:
         print_preview(generated_files)
@@ -116,6 +146,30 @@ def collect_answers(project_type: str, repo_snapshot: RepoSnapshot | None) -> Pr
         ),
         repo_snapshot=repo_snapshot,
     )
+
+
+def confirm_answers(answers: ProjectAnswers) -> str:
+    print(UI.panel("Review Answers", review_lines(answers)))
+    return ask_choice(
+        "Ready to generate files?",
+        [
+            (REVIEW_CONFIRM, "Confirm"),
+            (REVIEW_BACK, "Back through answers"),
+            (REVIEW_QUIT, "Quit"),
+        ],
+    )
+
+
+def review_lines(answers: ProjectAnswers) -> list[str]:
+    return [
+        f"Project: {answers.name}",
+        f"Goal: {answers.goal}",
+        f"Users: {answers.users}",
+        f"Stack: {answers.stack}",
+        f"Quality: {answers.quality_bar}",
+        f"Output: {answers.output_style}",
+        "Files: PROJECT.md, TASKS.md, KICKOFF.md",
+    ]
 
 
 def collect_users() -> str:
@@ -173,6 +227,9 @@ def collect_quality_bar() -> str:
 
 
 def ask_choice(prompt: str, choices: list[tuple[str, str]]) -> str:
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        return ask_choice_menu(prompt, choices)
+
     print(UI.heading(prompt))
     for line in UI.choice_lines(choices):
         print(line)
@@ -183,6 +240,67 @@ def ask_choice(prompt: str, choices: list[tuple[str, str]]) -> str:
             if response == str(index) or response.lower() == value:
                 return value
         print("Enter one of the listed numbers.")
+
+
+def ask_choice_menu(prompt: str, choices: list[tuple[str, str]]) -> str:
+    selected_index = 0
+    print(UI.heading(prompt))
+    print_choice_menu(choices, selected_index)
+
+    while True:
+        key = read_key()
+        if key in ("\r", "\n"):
+            clear_choice_menu(menu_line_count(choices))
+            print(UI.selected_line(choices[selected_index][1]))
+            return choices[selected_index][0]
+        if key in ("\x03", "\x1b", "q", "Q"):
+            raise KeyboardInterrupt
+        if key in ("\x1b[A", "k"):
+            selected_index = (selected_index - 1) % len(choices)
+            refresh_choice_menu(choices, selected_index)
+        elif key in ("\x1b[B", "j"):
+            selected_index = (selected_index + 1) % len(choices)
+            refresh_choice_menu(choices, selected_index)
+        elif key.isdigit():
+            choice_index = int(key) - 1
+            if 0 <= choice_index < len(choices):
+                selected_index = choice_index
+                refresh_choice_menu(choices, selected_index)
+
+
+def print_choice_menu(choices: list[tuple[str, str]], selected_index: int) -> None:
+    for line in UI.choice_lines(choices, selected_index=selected_index):
+        print(line)
+    print(UI.menu_help_line())
+
+
+def refresh_choice_menu(choices: list[tuple[str, str]], selected_index: int) -> None:
+    clear_choice_menu(menu_line_count(choices))
+    print_choice_menu(choices, selected_index)
+
+
+def clear_choice_menu(line_count: int) -> None:
+    for _ in range(line_count):
+        print("\033[F\033[2K", end="")
+
+
+def menu_line_count(choices: list[tuple[str, str]]) -> int:
+    return len(choices) + 1
+
+
+def read_key() -> str:
+    file_descriptor = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(file_descriptor)
+    try:
+        tty.setraw(file_descriptor)
+        key = sys.stdin.read(1)
+        if key == "\x1b":
+            readable, _, _ = select.select([sys.stdin], [], [], 0.05)
+            if readable:
+                key += sys.stdin.read(2)
+        return key
+    finally:
+        termios.tcsetattr(file_descriptor, termios.TCSADRAIN, old_settings)
 
 
 def ask_text(prompt: str, default: str | None = None) -> str:
@@ -253,6 +371,29 @@ def write_generated_files(output_dir: Path, generated_files, force: bool) -> Non
         if path.exists() and not force:
             raise SystemExit(f"Refusing to overwrite {path}. Re-run with --force if intended.")
         path.write_text(generated_file.content, encoding="utf-8")
+
+
+def existing_generated_paths(output_dir: Path, generated_files) -> list[Path]:
+    return [
+        output_dir / generated_file.path
+        for generated_file in generated_files
+        if (output_dir / generated_file.path).exists()
+    ]
+
+
+def resolve_write_conflicts(paths: list[Path]) -> str:
+    conflict_lines = [str(path) for path in paths]
+    print(UI.panel("Existing Files Found", conflict_lines))
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise SystemExit("Refusing to overwrite existing files. Re-run with --force if intended.")
+    return ask_choice(
+        "How should Kickstart handle these files?",
+        [
+            (WRITE_PREVIEW, "Preview instead"),
+            (WRITE_OVERWRITE, "Overwrite"),
+            (WRITE_QUIT, "Quit"),
+        ],
+    )
 
 
 def print_preview(generated_files) -> None:
