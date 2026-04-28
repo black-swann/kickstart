@@ -10,6 +10,23 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "betnbd" }]
+keywords = ["cli", "project", "scaffolding", "tui"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development",
+]
+
+[project.urls]
+Homepage = "https://github.com/betnbd/kickstart"
+Repository = "https://github.com/betnbd/kickstart"
 
 [project.scripts]
 kickstart = "kickstart.cli:main"

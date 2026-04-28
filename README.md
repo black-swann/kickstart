@@ -6,6 +6,17 @@ Kickstart turns a few plain-English project-start answers into a practical kicko
 - `TASKS.md` for initial execution state
 - `KICKOFF.md` for the first structured assistant instruction
 
+It is a dependency-light Python CLI for shaping rough ideas into enough context for the next implementation pass.
+
+## Features
+
+- Guided interview for new projects or existing repositories
+- Keyboard-friendly terminal menus with a review step before generation
+- Preview mode by default
+- Safer write mode that refuses accidental overwrites
+- Existing-repo snapshot support for common project files, current branch, and dirty state
+- No runtime third-party dependencies
+
 The first prompts set the branch:
 
 1. Are you starting a new project, or working inside an existing repo?
@@ -31,6 +42,12 @@ In an interactive terminal, choice prompts support:
 - `q`, Escape, or Ctrl-C to quit
 
 Before generating files, Kickstart shows a review panel. You can confirm, go back through the answers, or quit without generating anything.
+
+## Security Notes
+
+Kickstart does not require network access and does not execute generated files. Existing-repo inspection runs read-only `git` commands through `subprocess.run()` without a shell.
+
+Generated files can include the repository path, constraints, risks, and other context you type into the prompts. Review generated output before committing it to a public repository.
 
 ## Prompt Model
 
@@ -87,4 +104,7 @@ PYTHONPATH=src python3 -m kickstart init --write --force --output-dir ./example-
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests
+python3 -m compileall -q src tests
 ```
+
+Before making a release or changing repository visibility, also run a hygiene scan over the current tree and reachable history for local paths, secrets, and private workflow files.
