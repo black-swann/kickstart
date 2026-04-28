@@ -11,6 +11,7 @@ from kickstart.cli import (
     ask_choice,
     ask_text,
     collect_answers,
+    edit_answers,
     existing_generated_paths,
     resolve_write_conflicts,
     review_lines,
@@ -240,6 +241,40 @@ class CliFlowTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertEqual(2, collect.call_count)
         generate_files.assert_called_once_with(revised)
+
+    def test_run_init_edit_from_review_updates_one_answer(self):
+        generated_answers = []
+
+        def fake_generate_files(answers):
+            generated_answers.append(answers)
+            return []
+
+        with (
+            patch("kickstart.cli.collect_answers", return_value=sample_answers("first")) as collect,
+            patch("kickstart.cli.confirm_answers", side_effect=["edit", "confirm"]),
+            patch("kickstart.cli.edit_answers", return_value=sample_answers("revised")) as edit,
+            patch("kickstart.cli.generate_files", side_effect=fake_generate_files),
+            patch("kickstart.cli.print_preview"),
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = run_init(init_args())
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(1, collect.call_count)
+        edit.assert_called_once()
+        self.assertEqual("revised", generated_answers[0].name)
+
+    def test_edit_answers_can_update_project_goal(self):
+        answers = sample_answers()
+
+        with (
+            patch("kickstart.cli.ask_choice", return_value="goal"),
+            patch("kickstart.cli.ask_text", return_value="make a better app"),
+        ):
+            updated = edit_answers(answers)
+
+        self.assertEqual("make a better app", updated.goal)
+        self.assertEqual(answers.name, updated.name)
 
     def test_run_init_previews_instead_when_write_conflicts(self):
         with TemporaryDirectory() as tmp:

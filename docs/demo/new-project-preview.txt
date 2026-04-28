@@ -44,8 +44,9 @@ Project name [kickstart]
 +------------------------------------------------------------------------------+
 Ready to generate files?
   1. Confirm
-  2. Back through answers
-  3. Quit
+  2. Edit one answer
+  3. Back through answers
+  4. Quit
 > 
 --- PROJECT.md ---
 

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import termios
 import tty
+from dataclasses import replace
 from pathlib import Path
 
 from .brief import (
@@ -21,6 +22,7 @@ from .ui import Tui
 
 UI = Tui()
 REVIEW_CONFIRM = "confirm"
+REVIEW_EDIT = "edit"
 REVIEW_BACK = "back"
 REVIEW_QUIT = "quit"
 WRITE_PREVIEW = "preview"
@@ -123,11 +125,16 @@ def collect_repo_snapshot(project_type: str, repo_path: Path | None) -> RepoSnap
 def collect_confirmed_answers(project_type: str, repo_snapshot: RepoSnapshot | None) -> ProjectAnswers | None:
     while True:
         answers = collect_answers(project_type, repo_snapshot)
-        review_action = confirm_answers(answers)
-        if review_action == REVIEW_CONFIRM:
-            return answers
-        if review_action == REVIEW_QUIT:
-            return None
+        while True:
+            review_action = confirm_answers(answers)
+            if review_action == REVIEW_CONFIRM:
+                return answers
+            if review_action == REVIEW_QUIT:
+                return None
+            if review_action == REVIEW_EDIT:
+                answers = edit_answers(answers)
+            if review_action == REVIEW_BACK:
+                break
 
 
 def handle_write(output_dir: Path, generated_files, force: bool) -> int:
@@ -179,10 +186,53 @@ def confirm_answers(answers: ProjectAnswers) -> str:
         "Ready to generate files?",
         [
             (REVIEW_CONFIRM, "Confirm"),
+            (REVIEW_EDIT, "Edit one answer"),
             (REVIEW_BACK, "Back through answers"),
             (REVIEW_QUIT, "Quit"),
         ],
     )
+
+
+def edit_answers(answers: ProjectAnswers) -> ProjectAnswers:
+    field = ask_choice(
+        "Which answer should change?",
+        [
+            ("name", "Project name"),
+            ("goal", "Project goal"),
+            ("users", "Target users"),
+            ("stack", "Tech stack"),
+            ("constraints", "Constraints"),
+            ("done", "Definition of done"),
+            ("risks", "Risks"),
+            ("quality_bar", "Quality bar"),
+            ("output_style", "Output style"),
+        ],
+    )
+    if field == "name":
+        return replace(answers, name=ask_text("Project name", default=answers.name))
+    if field == "goal":
+        return replace(answers, goal=ask_text("What do you want to make?", default=answers.goal))
+    if field == "users":
+        return replace(answers, users=collect_users())
+    if field == "stack":
+        return replace(answers, stack=collect_stack())
+    if field == "constraints":
+        return replace(answers, constraints=ask_text("Any must-haves or limits?", default=answers.constraints))
+    if field == "done":
+        return replace(answers, done=ask_text("What would make this feel finished?", default=answers.done))
+    if field == "risks":
+        return replace(answers, risks=ask_text("Anything uncertain or worrying?", default=answers.risks))
+    if field == "quality_bar":
+        return replace(answers, quality_bar=collect_quality_bar())
+    if field == "output_style":
+        return replace(
+            answers,
+            output_style=ask_choice(
+                "How detailed should the generated kickoff guidance be?",
+                [("concise", "Concise"), ("detailed", "Detailed")],
+            ),
+        )
+    raise SystemExit(f"Unknown review edit field: {field}")
 
 
 def review_lines(answers: ProjectAnswers) -> list[str]:
