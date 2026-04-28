@@ -1,57 +1,144 @@
 # Kickstart
 
-Kickstart turns a few plain-English project-start answers into a practical kickoff packet:
+Kickstart is a small Python CLI for turning a rough project idea into a practical kickoff packet.
+
+It asks a short set of plain-English questions, then drafts:
 
 - `PROJECT.md` for stable project context
-- `TASKS.md` for initial execution state
-- `KICKOFF.md` for the first structured assistant instruction
+- `TASKS.md` for the first execution checklist
+- `KICKOFF.md` for the first structured assistant prompt
 
-It is a dependency-light Python CLI for shaping rough ideas into enough context for the next implementation pass.
+Kickstart is designed for local use at the start of a project, before the repo has enough shape for a detailed plan.
+
+![Kickstart terminal review flow](docs/readme-screenshot.png)
 
 ## Features
 
-- Guided interview for new projects or existing repositories
-- Keyboard-friendly terminal menus with a review step before generation
-- Preview mode by default
-- Safer write mode that refuses accidental overwrites
-- Existing-repo snapshot support for common project files, current branch, and dirty state
-- No runtime third-party dependencies
+- guided interview for new projects or existing repositories
+- keyboard-friendly terminal menus with arrow keys, `j`/`k`, number shortcuts, and `q`/Escape quit
+- review step before any files are generated
+- preview mode by default
+- write mode that refuses accidental overwrites
+- existing-repo snapshot with common files, branch, and dirty-state detection
+- concise or detailed kickoff output
+- no runtime third-party dependencies
 
-The first prompts set the branch:
+## Requirements
 
-1. Are you starting a new project, or working inside an existing repo?
-2. Should the tool preview generated files first, or write them directly?
+- Python `3.11` or newer
+- `git` for existing-repo inspection
 
-The next prompts collect project context, then apply a quality preset:
+Kickstart runs without network access and does not require a background service.
 
-- prototype
-- production
-- learning
-- repo cleanup
-- custom
+## Install
 
-You can also choose concise or detailed kickoff guidance.
+### Install Directly From GitHub
 
-The question flow is intentionally beginner-friendly. If you do not know the tech stack, choose "Suggest one for me" and Kickstart will tell the generated kickoff brief to compare stack choices in plain English.
+Use this if you want the `kickstart` command available on your `PATH` without cloning the repo manually:
 
-In an interactive terminal, choice prompts support:
+```bash
+python3 -m pip install --user git+https://github.com/betnbd/kickstart.git
+```
 
-- Up/Down arrows or `j`/`k` to move
-- number keys to jump to an option
-- Enter to select
-- `q`, Escape, or Ctrl-C to quit
+If your Python user scripts directory is not on `PATH`, add it first:
 
-Before generating files, Kickstart shows a review panel. You can confirm, go back through the answers, or quit without generating anything.
+```bash
+python3 -m site --user-base
+```
 
-## Security Notes
+The command usually lives under:
 
-Kickstart does not require network access and does not execute generated files. Existing-repo inspection runs read-only `git` commands through `subprocess.run()` without a shell.
+```text
+~/.local/bin
+```
 
-Generated files can include the repository path, constraints, risks, and other context you type into the prompts. Review generated output before committing it to a public repository.
+Verify the install:
+
+```bash
+kickstart --help
+```
+
+### Install With pipx
+
+If you use `pipx` for isolated CLI tools:
+
+```bash
+pipx install git+https://github.com/betnbd/kickstart.git
+kickstart --help
+```
+
+### Run From Source
+
+Use this path if you want to inspect or modify the code:
+
+```bash
+git clone https://github.com/betnbd/kickstart.git
+cd kickstart
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+kickstart --help
+```
+
+You can also run from a checkout without installing:
+
+```bash
+PYTHONPATH=src python3 -m kickstart init
+```
+
+## Quick Start
+
+Preview generated files without writing anything:
+
+```bash
+kickstart init
+```
+
+Write the generated files to a directory:
+
+```bash
+kickstart init --write --output-dir ./example-output
+```
+
+Start from an existing repository:
+
+```bash
+kickstart init --project-type existing --repo-path /path/to/repo
+```
+
+By default, Kickstart refuses to overwrite existing generated files. In an interactive terminal, write conflicts show a menu where you can preview instead, overwrite, or quit.
+
+Use `--force` only when replacing generated files is intentional:
+
+```bash
+kickstart init --write --force --output-dir ./example-output
+```
+
+## How It Works
+
+The interview collects:
+
+- project type
+- output mode
+- project name and goal
+- target users
+- likely stack or stack recommendation request
+- constraints, definition of done, and risks
+- quality preset
+- concise or detailed kickoff style
+
+For existing repositories, Kickstart also records a small snapshot:
+
+- repository path
+- common project files
+- current Git branch
+- whether the worktree has uncommitted changes
+
+Before generation, the review panel lets you confirm, go back through answers, or quit without writing files.
 
 ## Prompt Model
 
-Kickstart follows a simple research-backed structure used across major prompt guidance:
+Kickstart follows a compact prompt structure used across common AI-assistant guidance:
 
 - task: what you want to make
 - audience: who it is for
@@ -65,46 +152,44 @@ References:
 - Microsoft Learn: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/prompt-engineering
 - Google Cloud: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/prompt-best-practices
 
-## Run
+## Safety and Privacy
 
-```bash
-PYTHONPATH=src python3 -m kickstart init
-```
+Kickstart is a local CLI. It does not make network requests, collect telemetry, or execute generated files.
 
-For regular local use, install it in editable mode:
+Existing-repo inspection runs read-only `git` commands through `subprocess.run()` without a shell. Write mode only writes `PROJECT.md`, `TASKS.md`, and `KICKOFF.md`.
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
-kickstart init
-```
+Generated files may include paths, constraints, risks, and other context you type into the prompts. Review generated output before committing or publishing it.
 
-Preview mode is the default. To write files directly:
+See [SECURITY.md](SECURITY.md) for security reporting guidance.
 
-```bash
-PYTHONPATH=src python3 -m kickstart init --write --output-dir ./example-output
-```
+## Development
 
-For an existing repo:
-
-```bash
-PYTHONPATH=src python3 -m kickstart init --project-type existing --repo-path /path/to/repo
-```
-
-By default, existing files are not overwritten. If `--write` would replace generated files in an interactive terminal, Kickstart shows the conflicting paths and lets you preview instead, overwrite, or quit. In non-interactive runs, it refuses to overwrite unless `--force` is set.
-
-Use `--force` only when replacing generated files is intentional:
-
-```bash
-PYTHONPATH=src python3 -m kickstart init --write --force --output-dir ./example-output
-```
-
-## Validate
+Run the default validation commands from the repository root:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests
 python3 -m compileall -q src tests
 ```
 
-Before making a release or changing repository visibility, also run a hygiene scan over the current tree and reachable history for local paths, secrets, and private workflow files.
+Check editable install behavior:
+
+```bash
+python3 -m venv /tmp/kickstart-check
+/tmp/kickstart-check/bin/python -m pip install -e .
+/tmp/kickstart-check/bin/kickstart --help
+rm -rf /tmp/kickstart-check
+```
+
+Before changing repository visibility or publishing a release, scan the current tree and reachable Git history for local paths, secrets, and private workflow files.
+
+## Repository Layout
+
+- `src/kickstart/cli.py` - command-line flow, prompts, repo inspection, and write handling
+- `src/kickstart/brief.py` - generated file models and renderers
+- `src/kickstart/ui.py` - small terminal rendering helpers
+- `tests/` - unit tests for generation, CLI flow, and UI formatting
+- `.github/workflows/ci.yml` - CI for supported Python versions
+
+## License
+
+MIT. See [LICENSE](LICENSE).
